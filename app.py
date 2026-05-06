@@ -63,6 +63,7 @@ with st.sidebar:
     start_date = st.date_input("公告起始日", value=this_monday)
     end_date = st.date_input("公告結束日", value=default_end_date)
     
+    st.write("結束日請勿選取未來日期")
     st.markdown("---")
     search_btn = st.button("🚀 執行多關鍵字查詢", type="primary", use_container_width=True)
 
