@@ -52,28 +52,58 @@ with st.sidebar:
     search_btn = st.button("🚀 執行深度查詢", type="primary", use_container_width=True)
 
 def get_award_method(session, detail_url):
-    """💡 優化：抓取決標方式並剔除無用按鈕文字"""
+    """深度優化：解決 Session 遺失與精準定位問題"""
     if not detail_url or "http" not in detail_url:
-        return "無法取得連結"
+        return "連結無效"
+    
+    # 💡 模擬更真實的 Header
+    custom_headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Referer": "https://web.pcc.gov.tw/prkms/tender/common/basic/readTenderBasic"
+    }
+
     try:
-        time.sleep(0.5)
-        res = session.get(detail_url, verify=False, timeout=10)
+        # 安全延遲，避免過快被封鎖
+        time.sleep(0.8)
+        
+        # 💡 使用原本的 session 帶入 custom_headers 進行請求
+        res = session.get(detail_url, headers=custom_headers, verify=False, timeout=15)
+        res.encoding = 'utf-8' # 強制編碼
+        
+        if res.status_code != 200:
+            return f"連線異常({res.status_code})"
+
         detail_soup = BeautifulSoup(res.text, "html.parser")
         
-        target = detail_soup.find(string=re.compile("決標方式"))
+        # --- 定位策略 1：精準尋找 th 內容為「決標方式」的隔壁 td ---
+        # 針對你截圖中的結構優化
+        all_ths = detail_soup.find_all("th")
+        for th in all_ths:
+            th_text = th.get_text(strip=True)
+            if "決標方式" == th_text: # 精確比對
+                td = th.find_next_sibling("td")
+                if td:
+                    full_text = td.get_text(separator=" ", strip=True)
+                    # 剔除按鈕文字
+                    final_text = full_text.replace("採購評選委員名單", "").strip()
+                    if final_text: return final_text
+
+        # --- 定位策略 2：如果策略 1 失敗，改用正則表達式模糊搜尋 ---
+        target = detail_soup.find(string=re.compile(r"決標方式"))
         if target:
             parent = target.find_parent(["th", "td"])
-            value_td = parent.find_next_sibling("td")
-            if value_td:
-                # 取得乾淨文字
-                text = value_td.get_text(separator=" ", strip=True)
-                # 💡 關鍵修正：剔除「採購評選委員名單」按鈕文字
-                # 這裡使用 replace 將按鈕文字替換為空字串，並處理多餘空白
-                cleaned_text = text.replace("採購評選委員名單", "").strip()
-                return cleaned_text
-        return "未標示"
-    except Exception:
-        return "抓取失敗"
+            if parent:
+                next_td = parent.find_next_sibling("td")
+                if next_td:
+                    txt = next_td.get_text(strip=True).replace("採購評選委員名單", "").strip()
+                    if txt: return txt
+
+        return "未發現欄位"
+        
+    except requests.exceptions.Timeout:
+        return "連線超時"
+    except Exception as e:
+        return f"解析出錯"
 
 def scrape_formal_115(key, s_date, e_date, progress_placeholder):
     """深度爬蟲核心邏輯"""
